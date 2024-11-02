@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Transkrypcji YouTube</title>
+    <style>
+        :root {
+            --primary-bg: #1a1a2e;
+            --box-bg: rgba(30, 30, 46, 0.95);
+            --glow-color: rgba(88, 58, 205, 0.2);
+            --text-color: #ffffff;
+            --accent-color: #583ACD;
+            --border-radius: 15px;
+            --timestamp-color: rgba(255, 255, 255, 0.5);
+            --text-secondary-color: rgba(255, 255, 255, 0.7);
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--primary-bg);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 40px;
+            color: var(--text-color);
+        }
+
+        .input-box {
+            background: var(--box-bg);
+            padding: 30px;
+            border-radius: var(--border-radius);
+            margin-bottom: 40px;
+            box-shadow: 0 0 30px var(--glow-color);
+            width: 50%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 15px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-color);
+            font-size: 16px;
+        }
+
+        .content-section {
+            display: none;
+            gap: 30px;
+            margin-bottom: 30px;
+            height: calc(100vh - 300px);
+            min-height: 400px;
+            justify-content: center;
+        }
+
+        .video-section {
+            flex: 0.4;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .video-container {
+            background: var(--box-bg);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: 0 0 30px var(--glow-color);
+            aspect-ratio: 16/9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .action-buttons {
+            background: var(--box-bg);
+            padding: 15px;
+            border-radius: var(--border-radius);
+            display: flex;
+            gap: 10px;
+            box-shadow: 0 0 50px var(--glow-color);
+            justify-content: center;
+        }
+
+        .transcript-container {
+            flex: 0.4;
+            background: var(--box-bg);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: 0 0 30px var(--glow-color);
+            overflow-y: auto;
+            font-size: 14px;
+        }
+
+        .timestamp-line {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 5px 0;
+            width: 100%;
+        }
+
+        .timestamp {
+            color: rgba(255, 255, 255, 0.5);
+            font-family: monospace;
+            flex: 0 0 80px;
+            white-space: nowrap;
+        }
+
+        .text {
+            
+            color: var(--text-color);
+            flex: 1;
+            min-width: 0;
+            white-space: normal;
+            overflow-wrap: break-word;
+            max-width: 100%
+        }
+
+        button {
+            padding: 15px 25px;
+            border: none;
+            border-radius: var(--border-radius);
+            background: var(--accent-color);
+            color: var(--text-color);
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        button.primary-button {
+            background: linear-gradient(45deg, #e147c2, #7B5EE5);
+        }
+
+        button.secondary-button {
+            background: #2379bf;
+        }
+
+        .loading {
+            text-align: center;
+            display: none;
+            padding: 20px;
+        }
+
+        .loading-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid var(--accent-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--accent-color);
+            color: var(--text-color);
+            padding: 10px 20px;
+            border-radius: var(--border-radius);
+            display: none;
+            animation: fadeInOut 2s ease-in-out;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(20px); }
+            20% { opacity: 1; transform: translateY(0); }
+            80% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-20px); }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Generator Transkrypcji YouTube</h1>
+        
+        <div class="input-box">
+            <div class="input-group">
+                <input type="text" id="youtubeUrl" placeholder="Wklej link do filmu YouTube...">
+                <button onclick="getTranscript()" id="submitBtn" class="primary-button">
+                    Utwórz transkrypcję
+                </button>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <p>Pobieranie transkrypcji...</p>
+        </div>
+
+        <div id="contentSection" class="content-section">
+            <div class="video-section">
+                <div class="video-container" id="videoPlayer">
+                    <!-- YouTube Player będzie tutaj wstawiony -->
+                </div>
+                <div class="action-buttons">
+                    <button onclick="copyTranscript()" class="secondary-button">
+                        Kopiuj do schowka
+                    </button>
+                    <button onclick="saveToFile()" class="secondary-button">
+                        Zapisz do pliku
+                    </button>
+                </div>
+            </div>
+
+            <div class="transcript-container" id="result">
+                <!-- Transkrypcja będzie tutaj -->
+            </div>
+        </div>
+
+        <div id="copyNotification" class="notification">
+            Skopiowano do schowka!
+        </div>
+    </div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+    
+    <script>
+        let player;
+
+        function onYouTubeIframeAPIReady() {
+            // Funkcja będzie używana gdy potrzebujemy zainicjalizować player
+        }
+
+        function initializePlayer(videoId) {
+            if (player) {
+                player.destroy();
+            }
+            
+            player = new YT.Player('videoPlayer', {
+                height: '100%',
+                width: '100%',
+                videoId: videoId,
+                playerVars: {
+                    autoplay: 0,
+                    controls: 1
+                }
+            });
+        }
+
+        function extractVideoId(url) {
+            const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[7].length === 11) ? match[7] : false;
+        }
+
+        async function getTranscript() {
+            const url = document.getElementById('youtubeUrl').value;
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
+            const contentSection = document.getElementById('contentSection');
+            const result = document.getElementById('result');
+
+            loading.style.display = 'block';
+            submitBtn.disabled = true;
+            contentSection.style.display = 'none';
+
+            try {
+                const response = await fetch('/get_transcript', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Nie udało się pobrać transkrypcji');
+                }
+
+                const lines = data.transcript.split('\n').map(line => {
+                    const timestampEndIndex = line.indexOf(']') + 1;
+                    const timestamp = line.substring(0, timestampEndIndex);
+                    const text = line.substring(timestampEndIndex).trim();
+                    
+                    return `<div class="timestamp-line">
+                        <span class="timestamp">${timestamp}</span>
+                        <span class="text">${text}</span>
+                    </div>`;
+                });
+
+                result.innerHTML = lines.join('');
+                contentSection.style.display = 'flex';
+
+                const videoId = extractVideoId(url);
+                if (videoId) {
+                    initializePlayer(videoId);
+                }
+
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        }
+
+        async function copyTranscript() {
+            const result = document.getElementById('result');
+            const notification = document.getElementById('copyNotification');
+
+            try {
+                const text = Array.from(result.querySelectorAll('.timestamp-line'))
+                    .map(line => {
+                        const timestamp = line.querySelector('.timestamp').textContent;
+                        const text = line.querySelector('.text').textContent;
+                        return `${timestamp} ${text}`;
+                    }).join('\n');
+
+                await navigator.clipboard.writeText(text);
+                notification.style.display = 'block';
+                setTimeout(() => {
+                    notification.style.display = 'none';
+                }, 2000);
+            } catch (err) {
+                alert('Nie udało się skopiować tekstu: ' + err);
+            }
+        }
+
+        function saveToFile() {
+            const result = document.getElementById('result');
+            const text = Array.from(result.querySelectorAll('.timestamp-line'))
+                .map(line => {
+                    const timestamp = line.querySelector('.timestamp').textContent;
+                    const text = line.querySelector('.text').textContent;
+                    return `${timestamp} ${text}`;
+                }).join('\n');
+
+            const element = document.createElement('a');
+            const file = new Blob([text], {type: 'text/plain;charset=utf-8'});
+            const date = new Date();
+            const fileName = `transkrypcja_${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2,'0')}${date.getDate().toString().padStart(2,'0')}.txt`;
+            
+            element.href = URL.createObjectURL(file);
+            element.download = fileName;
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+    </script>
+</body>
+</html>
