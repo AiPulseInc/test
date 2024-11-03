@@ -55,11 +55,28 @@ def get_transcript():
         logger.error("Error accessing video page for video ID %s: %s", video_id, str(e))
         return jsonify({"error": "Could not access video page. Reason: " + str(e)}), 500
 
+    # Próba listowania dostępnych transkrypcji
+    try:
+        logger.info("Listing available transcripts for video ID: %s", video_id)
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        available_transcripts = []
+        for transcript in transcript_list:
+            available_transcripts.append({
+                'language': transcript.language,
+                'is_generated': transcript.is_generated,
+                'is_translatable': transcript.is_translatable,
+                'translation_languages': transcript.translation_languages
+            })
+        logger.info("Available transcripts: %s", available_transcripts)
+    except Exception as e:
+        logger.error("Error listing transcripts for video ID %s: %s", video_id, str(e))
+        return jsonify({"error": "Could not list transcripts for the video. Reason: " + str(e)}), 500
+
     # Próba pobrania transkrypcji
     try:
         logger.info("Attempting to fetch transcript for video ID: %s", video_id)
         # Próba pobrania transkrypcji za pomocą youtube_transcript_api
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
         logger.info("Successfully fetched transcript for video ID: %s", video_id)
 
         transcript_text = ""
