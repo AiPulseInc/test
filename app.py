@@ -1,6 +1,7 @@
 import logging
 import re
 import requests
+import time
 from flask import Flask, request, jsonify, render_template
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
@@ -55,6 +56,9 @@ def get_transcript():
         logger.error("Error accessing video page for video ID %s: %s", video_id, str(e))
         return jsonify({"error": "Could not access video page. Reason: " + str(e)}), 500
 
+    # Dodanie opóźnienia przed próbą listowania transkrypcji
+    time.sleep(2)
+
     # Próba listowania dostępnych transkrypcji
     try:
         logger.info("Listing available transcripts for video ID: %s", video_id)
@@ -76,7 +80,7 @@ def get_transcript():
     try:
         logger.info("Attempting to fetch transcript for video ID: %s", video_id)
         # Próba pobrania transkrypcji za pomocą youtube_transcript_api
-        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'auto'])
         logger.info("Successfully fetched transcript for video ID: %s", video_id)
 
         transcript_text = ""
