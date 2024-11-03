@@ -1,122 +1,74 @@
-from flask import Flask, render_template, request, jsonify
-from youtube_transcript_api import YouTubeTranscriptApi
-import re
 import logging
-import sys
+import re
+from flask import Flask, request, jsonify, render_template
+from youtube_transcript_api import YouTubeTranscriptApi
 
-# Konfiguracja logowania
+# Konfiguracja loggera
 logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    stream=sys.stdout
+    level=logging.DEBUG,  # Ustawienie poziomu logowania na DEBUG, aby uzyskać jak najwięcej informacji
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Format logów z timestampem, nazwą loggera, poziomem logowania i wiadomością
+    handlers=[
+        logging.StreamHandler()  # Logowanie do konsoli (logi będą widoczne w Render, jak i lokalnie)
+    ]
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # Utworzenie instancji loggera
 
+# Tworzenie aplikacji Flask
 app = Flask(__name__)
 
-def extract_video_id(url):
-    """Extract YouTube video ID from URL"""
-    patterns = [
-        r'(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([^&\n?#]+)',
-    ]
-    
-    for pattern in patterns:
-        match = re.search(pattern, url)
-        if match:
-            logger.info(f"Extracted video ID: {match.group(1)}")
-            return match.group(1)
-    
-    logger.error(f"Could not extract video ID from URL: {url}")
-    raise ValueError("Nieprawidłowy URL YouTube")
-
-def get_available_transcript(video_id):
-    """Get available transcript with priority languages"""
-    try:
-        logger.info(f"Attempting to get transcript list for video ID: {video_id}")
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        logger.info("Successfully retrieved transcript list")
-        
-        # Lista priorytetowych języków
-        priority_languages = ['pl', 'en']
-        
-        # Próbuj znaleźć transkrypcję w kolejności priorytetowej
-        for lang in priority_languages:
-            try:
-                logger.info(f"Attempting to find transcript in {lang}")
-                transcript = transcript_list.find_transcript([lang])
-                logger.info(f"Found transcript in {lang}")
-                return transcript
-            except Exception as e:
-                logger.warning(f"Could not find transcript in {lang}: {str(e)}")
-                continue
-        
-        # Jeśli nie znaleziono priorytetowych języków, spróbuj pobrać domyślną transkrypcję
-        try:
-            logger.info("Attempting to find manually created English transcript")
-            return transcript_list.find_manually_created_transcript(['en'])
-        except Exception as e:
-            logger.warning(f"Could not find manually created English transcript: {str(e)}")
-            try:
-                logger.info("Attempting to find generated English transcript")
-                return transcript_list.find_generated_transcript(['en'])
-            except Exception as e:
-                logger.warning(f"Could not find generated English transcript: {str(e)}")
-                
-                # Sprawdź dostępne transkrypcje
-                available_transcripts = transcript_list.manual_transcripts
-                if available_transcripts:
-                    logger.info("Found manual transcripts")
-                    return list(available_transcripts.values())[0]
-                
-                available_transcripts = transcript_list.generated_transcripts
-                if available_transcripts:
-                    logger.info("Found generated transcripts")
-                    return list(available_transcripts.values())[0]
-        
-        logger.error("No available transcripts found")
-        raise ValueError("Nie znaleziono dostępnej transkrypcji")
-        
-    except Exception as e:
-        logger.error(f"Error in get_available_transcript: {str(e)}")
-        raise
-
+# Endpoint do wyświetlenia strony głównej
 @app.route('/')
 def home():
+    logger.info("Rendering the index.html page")
     return render_template('index.html')
 
+# Endpoint do pobierania transkrypcji
 @app.route('/get_transcript', methods=['POST'])
 def get_transcript():
-    try:
-        data = request.get_json()
-        url = data.get('url')
-        
-        if not url:
-            logger.error("No URL provided")
-            return jsonify({'error': 'URL jest wymagany'}), 400
-        
-        logger.info(f"Processing URL: {url}")
-        video_id = extract_video_id(url)
-        transcript = get_available_transcript(video_id)
-        
-        logger.info("Fetching transcript data")
-        transcript_data = transcript.fetch()
-        
-        formatted_transcript = []
-        for entry in transcript_data:
-            start_time = int(entry['start'])
-            minutes = start_time // 60
-            seconds = start_time % 60
-            timestamp = f"[{minutes:02d}:{seconds:02d}]"
-            formatted_transcript.append(f"{timestamp} {entry['text']}")
-        
-        logger.info("Successfully processed transcript")
-        return jsonify({
-            'transcript': '\n'.join(formatted_transcript)
-        })
-        
-    except Exception as e:
-        logger.error(f"Error processing request: {str(e)}", exc_info=True)
-        return jsonify({'error': f"Error: {str(e)}"}), 400
+    data = request.get_json()  # Odczytanie danych z żądania POST
+    url = data.get('url')  # Pobranie URL wideo z danych
+    logger.info("Received request for URL: %s", url)
 
+    # Wydobycie ID wideo z URL
+    video_id = extract_video_id(url)
+    if not video_id:
+        logger.error("Invalid YouTube URL provided: %s", url)
+        return jsonify({"error": "Invalid YouTube URL"}), 400
+
+    logger.info("Extracted video ID: %s", video_id)
+
+    # Próba pobrania transkrypcji
+    try:
+        logger.info("Attempting to fetch transcript for video ID: %s", video_id)
+        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        logger.info("Successfully fetched transcript for video ID: %s", video_id)
+
+        transcript_text = ""
+        for entry in transcript:
+            timestamp = f"[{entry['start']:.2f}]"
+            text = entry['text']
+            transcript_text += f"{timestamp} {text}\n"
+
+        logger.debug("Generated transcript (first 100 chars): %s", transcript_text[:100])  # Log tylko pierwszych 100 znaków
+
+        return jsonify({"transcript": transcript_text}), 200
+
+    except Exception as e:
+        logger.error("Error fetching transcript for video ID %s: %s", video_id, str(e))
+        return jsonify({"error": "Could not retrieve a transcript for the video. Reason: " + str(e)}), 500
+
+# Funkcja do wydobywania ID wideo z URL
+def extract_video_id(url):
+    logger.info("Extracting video ID from URL: %s", url)
+    reg_exp = r'^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*'
+    match = re.match(reg_exp, url)
+    if match and len(match.groups()) >= 7:
+        video_id = match[7]
+        logger.info("Video ID extracted: %s", video_id)
+        return video_id
+    logger.warning("Failed to extract video ID from URL: %s", url)
+    return None
+
+# Uruchomienie serwera lokalnie
 if __name__ == '__main__':
     app.run(debug=True)
