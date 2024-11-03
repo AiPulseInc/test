@@ -39,6 +39,22 @@ def get_transcript():
 
     logger.info("Extracted video ID: %s", video_id)
 
+    # Próba uzyskania dostępu do strony wideo za pomocą User-Agent
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36'
+    }
+    try:
+        logger.info("Attempting to check video access for video ID: %s", video_id)
+        response = requests.get(f"https://www.youtube.com/watch?v={video_id}", headers=headers)
+        if response.status_code == 200:
+            logger.info("Successfully accessed video page for video ID: %s", video_id)
+        else:
+            logger.error("Failed to access video page for video ID %s. Status code: %s", video_id, response.status_code)
+            return jsonify({"error": f"Failed to access video page. Status code: {response.status_code}"}), 500
+    except Exception as e:
+        logger.error("Error accessing video page for video ID %s: %s", video_id, str(e))
+        return jsonify({"error": "Could not access video page. Reason: " + str(e)}), 500
+
     # Próba pobrania transkrypcji
     try:
         logger.info("Attempting to fetch transcript for video ID: %s", video_id)
